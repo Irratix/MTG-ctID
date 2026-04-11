@@ -6,16 +6,13 @@ import csv
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
-SET = "oracle_cards"
+SET = "all_cards"
 FILTER_SETTINGS = {
     "min_of_ctype": 100,
     "banned_sets": {"uno", "unh", "ung", "unf"},
     "banned_types": {"Saga"},
     "allowed_layout": {"normal"}
 }
-
-# TODO: add filters for minimum creatures of a type, filter by sets, filter by creature type (to remove Sagas)
-
 
 # gets the bulk data dictionary of all cards
 def get_card_dict(refresh=False):
@@ -81,6 +78,8 @@ def is_valid_card(card, seen, ctype, hist=Counter()):
         return False
     if any(t in FILTER_SETTINGS["banned_types"] for t in ctype["types"]):
         return False
+    if card.get("image_status") not in ("highres_scan", "lowres"):
+        return False
     return True
 
 
@@ -108,6 +107,12 @@ def get_labeled_data():
     hist = Counter()
     seen = set()
     for card in data:
+        print(card["name"])
+        # TODO: Figure out: Cards don't have a type_line for some reason?
+        # - Jinnie Fay, Jetmir's Second // Jinnie Fay, Jetmir's Second 
+        # - Unlikely Aid
+        if "type_line" not in card:
+            continue
         ctype = get_creature_type(card["type_line"])
         if not is_valid_card(card, seen, ctype):
             continue
@@ -118,6 +123,9 @@ def get_labeled_data():
     records = []
     seen = set()
     for card in data:
+        # TODO: see above
+        if "type_line" not in card:
+            continue
         ctype = get_creature_type(card["type_line"])
         if not is_valid_card(card, seen, ctype, hist):
             continue
