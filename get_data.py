@@ -110,7 +110,6 @@ def get_labeled_data():
         print(card["name"])
         # TODO: Figure out: Cards don't have a type_line for some reason?
         # - Jinnie Fay, Jetmir's Second // Jinnie Fay, Jetmir's Second 
-        # - Unlikely Aid
         if "type_line" not in card:
             continue
         ctype = get_creature_type(card["type_line"])
