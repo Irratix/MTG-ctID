@@ -7,7 +7,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 
-SET = "oracle_cards"
+SET = "all_cards"
 FILTER_SETTINGS = {
     "min_of_ctype": 100,
     "allowed_layout": {"normal"}
