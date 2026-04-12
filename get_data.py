@@ -6,6 +6,8 @@ import csv
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
+# TODO: Filter out "not_legal" in Vintage to get rid of test cards and un-cards properly
+
 SET = "all_cards"
 FILTER_SETTINGS = {
     "min_of_ctype": 100,
