@@ -6,15 +6,13 @@ import csv
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
-# TODO: Filter out "not_legal" in Vintage to get rid of test cards and un-cards properly
 
-SET = "all_cards"
+SET = "oracle_cards"
 FILTER_SETTINGS = {
     "min_of_ctype": 100,
-    "banned_sets": {"uno", "unh", "ung", "unf"},
-    "banned_types": {"Saga"},
     "allowed_layout": {"normal"}
 }
+
 
 # gets the bulk data dictionary of all cards
 def get_card_dict(refresh=False):
@@ -61,28 +59,60 @@ def get_creature_type(typeline):
     }
 
 
-# checks all properties that determine whether or not a card should be downloaded in the first place
-def is_valid_card(card, seen, ctype, hist=Counter()):
-    # TODO: handle double-faced cards. The following two checks just makes sure we skip them for now
-    if "illustration_id" not in card:
-        return False
-    if "//" in card["name"]:
-        return False
-    if card["illustration_id"] in seen:
-        return False
-    if not ctype["is_creature"]:
-        return False
-    if card["set"] in FILTER_SETTINGS["banned_sets"]:
-        return False
-    if card["layout"] not in FILTER_SETTINGS["allowed_layout"]:
-        return False
-    if any(t in hist and hist[t] < FILTER_SETTINGS["min_of_ctype"] for t in ctype["types"]):
-        return False
-    if any(t in FILTER_SETTINGS["banned_types"] for t in ctype["types"]):
-        return False
-    if card.get("image_status") not in ("highres_scan", "lowres"):
-        return False
-    return True
+# get a record of all cards (pre-histogram filter) that could be in the dataset
+def get_records():
+    with open(f"data/{SET}.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    
+    records = []
+    seen = set()
+    for card in data:
+        # Some of these are just to stop scanning for double-sided cards, we may want to support those later
+        if "illustration_id" not in card:
+            continue
+        if "//" in card["name"]:
+            continue
+        if card["illustration_id"] in seen:
+            continue
+        ctype = get_creature_type(card["type_line"])
+        if not ctype["is_creature"]:
+            continue
+        if card["layout"] not in FILTER_SETTINGS["allowed_layout"]:
+            continue
+        if card.get("image_status") not in ("highres_scan", "lowres"):
+            continue
+        if card["legalities"]["vintage"] == "not_legal":
+            continue
+        if "type_line" not in card:
+            continue
+
+        illustration_id = card["illustration_id"]
+        records.append((illustration_id, ctype["types"], card["name"], Path(f"data/{SET}/{illustration_id}.jpg"), card["image_uris"]["art_crop"]))
+        seen.add(illustration_id)
+    
+    return records
+        
+
+# filter records to support minimum frequency of creature types
+def hist_filter(records):
+    # we keep looping this until we have a return value
+    hist = Counter()
+    for _, ctype, _, _, _ in records:
+        hist.update(ctype)
+    
+    # if the rarest creature type 
+    if min(hist.values()) >= FILTER_SETTINGS["min_of_ctype"]:
+        return records
+
+    new_records = []
+
+    for illustration_id, ctype, name, path, uri in records:
+        if any(hist[t] < FILTER_SETTINGS["min_of_ctype"] for t in ctype):
+            continue
+        new_records.append((illustration_id, ctype, name, path, uri))
+    
+    print(f"after iteration of histogram filter, {len(new_records)} illustrations remain")
+    return hist_filter(new_records)
 
 
 # downloads an image
@@ -100,52 +130,18 @@ def download_image(args):
 
 
 # gets labeled data based on the bulk card dictionary
-def get_labeled_data():
-    # open the data
-    with open(f"data/{SET}.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    # collect histogram for the filtering process
-    hist = Counter()
-    seen = set()
-    for card in data:
-        print(card["name"])
-        # TODO: Figure out: Cards don't have a type_line for some reason?
-        # - Jinnie Fay, Jetmir's Second // Jinnie Fay, Jetmir's Second 
-        if "type_line" not in card:
-            continue
-        ctype = get_creature_type(card["type_line"])
-        if not is_valid_card(card, seen, ctype):
-            continue
-        hist.update(ctype["types"])
-        seen.add(card["illustration_id"])
-
-    # get a proper record of cards I wish to download
-    records = []
-    seen = set()
-    for card in data:
-        # TODO: see above
-        if "type_line" not in card:
-            continue
-        ctype = get_creature_type(card["type_line"])
-        if not is_valid_card(card, seen, ctype, hist):
-            continue
-        seen.add(card["illustration_id"])
-        records.append((card, ctype))
-
+def get_labeled_data(records):
     path_csv = Path(f"data/{SET}_manifest.csv")
     with open(path_csv, "w", newline="", encoding="utf-8") as f_csv:
         writer = csv.writer(f_csv)
-        writer.writerow(["illustration_id", "name", "types", "image_path"])
-        for card, ctype in records:
-            illustration_id = card["illustration_id"]
-            path_img = Path(f"data/{SET}/{illustration_id}.jpg")
-            writer.writerow([illustration_id, card["name"], "|".join(ctype["types"]), path_img])
+        writer.writerow(["illustration_id", "types", "name", "image_path"])
+        for illustration_id, ctype, name, path, _ in records:
+            writer.writerow([illustration_id, "|".join(ctype), name, path])
 
     # collect cards and write data
     download_tasks = [
-        (card["illustration_id"], card["image_uris"]["art_crop"])
-        for card, _ in records
+        (illustration_id, uri)
+        for illustration_id, _, _, _, uri in records
     ]
 
     try:
@@ -169,8 +165,16 @@ def parse_args():
 
 def main():
     args = parse_args()
+    print(f"-- getting {SET} dictionary --")
     get_card_dict(refresh=args.refresh)
-    get_labeled_data()
+    print(f"-- building creature card records --")
+    records = get_records()
+    print(*records[0:10], sep="\n")
+    print(len(records))
+    print(f"-- performing histogram filter --")
+    records = hist_filter(records)
+    print(f"-- downloading images --")
+    get_labeled_data(records)
 
 
 if __name__ == "__main__":
