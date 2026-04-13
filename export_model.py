@@ -4,7 +4,7 @@ from torchvision.models import efficientnet_b0
 import torch.nn as nn
 import json
 
-MODEL_INPUT_PATH = Path("models/checkpoint_epoch_50.pth")
+MODEL_INPUT_PATH = Path("models/checkpoint_epoch_1.pth")
 MODEL_OUTPUT_PATH = Path("final_models/creature_classifier.onnx")
 
 MODEL_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)

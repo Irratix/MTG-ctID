@@ -20,6 +20,8 @@
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
 <script>
+    const threshold = 0.18; // model classification threshold
+
     // Source - https://stackoverflow.com/a/45931408
     // Posted by clabe45, modified by community. See post 'Timeline' for change history
     // Retrieved 2026-04-12, License - CC BY-SA 4.0
@@ -30,9 +32,47 @@
                 // onload is changed from stackoverflow source to immediately preprocess the image and run the model
                 img.onload = async function () {
                     URL.revokeObjectURL(img.src);
-                    const inputTensor = preprocessImage(img);
-                    const results = await session.run({ image: inputTensor });
-                    display_results(results.logits.data);
+
+                    // get 3 crops at extremeties/center and turn into input tensors
+                    const inputTensors = get_crops(img).map(crop => preprocessImage(img, crop));
+
+                    // get results for all corps
+                    let best_scores = [];
+                    let best_predicted = [];
+                    let best_total = 0;
+                    for (const input of inputTensors) {
+                        const result = await session.run({ image: input });
+                        const logits = result.logits.data;
+
+                        const scores = Array.from(logits).map((logit, i) => ({
+                            type: all_types[i],
+                            score: sigmoid(logit)
+                        }));
+
+                        // sort by score descending
+                        scores.sort((a, b) => b.score - a.score);
+
+                        // predicted types above threshold
+                        const predicted = scores.filter(s => s.score > threshold);
+                        console.log(predicted);
+                        let total = 0;
+                        for (const ctype of scores.slice(0, predicted.length)) {
+                            total += ctype.score;
+                        }
+
+                        if (total > best_total) {
+                            best_scores = scores;
+                            best_predicted = predicted;
+                            best_total = total;
+                        }
+                    }
+
+                    // display results
+                    console.log('predicted types:', best_predicted.map(s => `${s.type} (${s.score.toFixed(3)})`));
+                    console.log('top 5:', best_scores.slice(0, 5).map(s => `${s.type} (${s.score.toFixed(3)})`));
+
+                    document.getElementById("predicted_types").innerHTML = best_predicted.map(s => s.type).join(" ");
+                    document.getElementById("top_5_types").innerHTML = "top 5 types: " + best_scores.slice(0, 5).map(s => `${s.type} (${s.score.toFixed(3)})`).join(", ");
                 };
 
                 img.src = URL.createObjectURL(this.files[0]); // set src to blob url
@@ -54,19 +94,44 @@
 
     init_model();
 
-    const preprocessImage = function (img) {
+    const get_crops = function (img) {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+
+        if (w > h) {
+            // landscape — crop left, center, right
+            return ['left', 'center', 'right'];
+        } else if (h > w) {
+            // portrait — crop top, center, bottom
+            return ['top', 'center', 'bottom'];
+        } else {
+            // already square — just one crop
+            return ['center'];
+        }
+    }
+
+    const preprocessImage = function (img, crop_position = "center") {
         const canvas = document.createElement('canvas');
         canvas.width = 224;
         canvas.height = 224;
         const ctx = canvas.getContext('2d');
 
-        // resize to 256 first, then center crop to 224
-        // draw the image scaled so shorter side is 256, centered
         const scale = 256 / Math.min(img.naturalWidth, img.naturalHeight);
         const scaledW = img.naturalWidth * scale;
         const scaledH = img.naturalHeight * scale;
-        const offsetX = (scaledW - 224) / 2;
-        const offsetY = (scaledH - 224) / 2;
+
+        let offsetX, offsetY;
+
+        if (crop_position === 'center') {
+            offsetX = (scaledW - 224) / 2;
+            offsetY = (scaledH - 224) / 2;
+        } else if (crop_position === 'left' || crop_position === 'top') {
+            offsetX = 0;
+            offsetY = 0;
+        } else if (crop_position === 'right' || crop_position === 'bottom') {
+            offsetX = scaledW - 224;
+            offsetY = scaledH - 224;
+        }
 
         ctx.drawImage(img, -offsetX, -offsetY, scaledW, scaledH);
 
@@ -90,25 +155,6 @@
 
     const sigmoid = function (x) {
         return 1 / (1 + Math.exp(-x));
-    }
-
-    const display_results = function (logits, threshold = 0.15) {
-        const scores = Array.from(logits).map((logit, i) => ({
-            type: all_types[i],
-            score: sigmoid(logit)
-        }));
-
-        // sort by score descending
-        scores.sort((a, b) => b.score - a.score);
-
-        // predicted types above threshold
-        const predicted = scores.filter(s => s.score > threshold);
-
-        console.log('predicted types:', predicted.map(s => `${s.type} (${s.score.toFixed(3)})`));
-        console.log('top 5:', scores.slice(0, 5).map(s => `${s.type} (${s.score.toFixed(3)})`));
-
-        document.getElementById("predicted_types").innerHTML = predicted.map(s => s.type).join(" ");
-        document.getElementById("top_5_types").innerHTML = scores.slice(0, 5).map(s => `${s.type} (${s.score.toFixed(3)})`);
     }
 
 </script>
