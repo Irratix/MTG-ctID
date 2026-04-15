@@ -20,7 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
 <script>
-    const threshold = 0.18; // model classification threshold
+    const threshold = 0.20; // model classification threshold
 
     // Source - https://stackoverflow.com/a/45931408
     // Posted by clabe45, modified by community. See post 'Timeline' for change history
@@ -84,7 +84,7 @@
     let all_types = null;
 
     const init_model = async function () {
-        session = await ort.InferenceSession.create("final_models/creature_classifier.onnx");
+        session = await ort.InferenceSession.create("final_models/EN_b2_creature_classifier.onnx");
         const response = await fetch("final_models/all_types.json");
         all_types = await response.json();
         console.log("model loaded, types:", all_types.length);
