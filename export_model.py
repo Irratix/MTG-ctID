@@ -4,8 +4,8 @@ from torchvision.models import efficientnet_b0
 import torch.nn as nn
 import json
 
-MODEL_INPUT_PATH = Path("models/EfficientNet_b2/e_50_tl_0.07138067351964612_vl_0.08332642912864685.pth")
-MODEL_OUTPUT_PATH = Path("final_models/EN_b2_creature_classifier.onnx")
+MODEL_INPUT_PATH = Path("models/EfficientNet_b0/e_49_tl_0.07548274185198049_vl_0.08482422214001417.pth")
+MODEL_OUTPUT_PATH = Path("final_models/EN_b0_creature_classifier.onnx")
 
 MODEL_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
