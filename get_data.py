@@ -5,12 +5,11 @@ from pathlib import Path
 import csv
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-
+from tqdm import tqdm
 
 SET = "all_cards"
 FILTER_SETTINGS = {
     "min_of_ctype": 100,
-    "allowed_layout": {"normal"}
 }
 
 
@@ -59,6 +58,92 @@ def get_creature_type(typeline):
     }
 
 
+### what follows are helper functions to parse different layouts properly ###
+# supports "normal", "mutate", "leveler", "meld", "prototype"
+def get_record_normal(card):
+    if "illustration_id" not in card:
+        return []
+    illustration_id = card["illustration_id"]
+    ctype = get_creature_type(card["type_line"])
+    if not ctype["is_creature"]:
+        return []
+    if card.get("image_status") not in ("highres_scan", "lowres"):
+        return []
+    if card["legalities"]["vintage"] == "not_legal":
+        return []
+
+    return [(illustration_id, ctype["types"], card["name"], Path(f"data/{SET}/{illustration_id}.jpg"), card["image_uris"]["art_crop"])]
+
+
+# supports "token"
+def get_record_token(card):
+    if "illustration_id" not in card:
+        return []
+    illustration_id = card["illustration_id"]
+    ctype = get_creature_type(card["type_line"])
+    if not ctype["is_creature"]:
+        return []
+    if card.get("image_status") not in ("highres_scan", "lowres"):
+        return []
+
+    return [(illustration_id, ctype["types"], card["name"], Path(f"data/{SET}/{illustration_id}.jpg"), card["image_uris"]["art_crop"])]
+
+
+# supports "transform", "modal_dfc"
+def get_record_transform(card):
+    if card["image_status"] not in ("highres_scan", "lowres"):
+        return []
+    if card["legalities"]["vintage"] == "not_legal":
+        return []
+    
+    records = []
+    for face in card["card_faces"]:
+        if "illustration_id" not in face:
+            continue
+        illustration_id = face["illustration_id"]
+        ctype = get_creature_type(face["type_line"])
+        if not ctype["is_creature"]:
+            continue
+        records.append((illustration_id, ctype["types"], face["name"], Path(f"data/{SET}/{illustration_id}.jpg"), face["image_uris"]["art_crop"]))
+    
+    return records
+
+
+# supports "adventure", "prepare"
+def get_record_adventure(card):
+    if "illustration_id" not in card:
+        return []
+    illustration_id = card["illustration_id"]
+    ctype = get_creature_type(card["type_line"].split(" // ")[0])
+    if not ctype["is_creature"]:
+        return []
+    if card.get("image_status") not in ("highres_scan", "lowres"):
+        return []
+
+    return [(illustration_id, ctype["types"], card["name"].split(" // ")[0], Path(f"data/{SET}/{illustration_id}.jpg"), card["image_uris"]["art_crop"])]
+
+
+# supports "double_faced_token"
+def get_record_double_faced_token(card):
+    if card["image_status"] not in ("highres_scan", "lowres"):
+        return []
+    
+    records = []
+    for face in card["card_faces"]:
+        if "illustration_id" not in face:
+            continue
+        illustration_id = face["illustration_id"]
+        ctype = get_creature_type(face["type_line"])
+        if not ctype["is_creature"]:
+            continue
+        records.append((illustration_id, ctype["types"], face["name"], Path(f"data/{SET}/{illustration_id}.jpg"), face["image_uris"]["art_crop"]))
+    
+    return records
+
+
+# TODO: check support for reversible_card in all_cards set
+
+
 # get a record of all cards (pre-histogram filter) that could be in the dataset
 def get_records():
     with open(f"data/{SET}.json", "r", encoding="utf-8") as f:
@@ -66,29 +151,27 @@ def get_records():
     
     records = []
     seen = set()
-    for card in data:
-        # Some of these are just to stop scanning for double-sided cards, we may want to support those later
-        if "illustration_id" not in card:
-            continue
-        if "//" in card["name"]:
-            continue
-        if card["illustration_id"] in seen:
-            continue
-        ctype = get_creature_type(card["type_line"])
-        if not ctype["is_creature"]:
-            continue
-        if card["layout"] not in FILTER_SETTINGS["allowed_layout"]:
-            continue
-        if card.get("image_status") not in ("highres_scan", "lowres"):
-            continue
-        if card["legalities"]["vintage"] == "not_legal":
-            continue
-        if "type_line" not in card:
+    for card in tqdm(data):
+        # get record for individual card
+        if card["layout"] in ("normal", "mutate", "leveler", "meld", "prototype"):
+            record = get_record_normal(card)
+        elif card["layout"] in ("token"):
+            record = get_record_token(card)
+        elif card["layout"] in ("transform", "modal_dfc", "reversible_card"):
+            record = get_record_transform(card)
+        elif card["layout"] in ("adventure", "prepare"):
+            record = get_record_adventure(card)
+        elif card["layout"] in ("double_faced_token"):
+            record = get_record_double_faced_token(card)
+        else:
             continue
 
-        illustration_id = card["illustration_id"]
-        records.append((illustration_id, ctype["types"], card["name"], Path(f"data/{SET}/{illustration_id}.jpg"), card["image_uris"]["art_crop"]))
-        seen.add(illustration_id)
+        # append to list of records where applicable
+        for illustration_id, ctype, name, path, uri in record:
+            if illustration_id in seen:
+                continue
+            records.append((illustration_id, ctype, name, path, uri))
+            seen.add(illustration_id)
     
     return records
         
@@ -111,7 +194,7 @@ def hist_filter(records):
             continue
         new_records.append((illustration_id, ctype, name, path, uri))
     
-    print(f"after iteration of histogram filter, {len(new_records)} illustrations remain")
+    print(f"after iteration of histogram filter, {len(new_records)} illustrations with {len(hist)} unique creature types remain")
     return hist_filter(new_records)
 
 
@@ -146,7 +229,7 @@ def get_labeled_data(records):
 
     try:
         with ThreadPoolExecutor(max_workers=16) as executor:
-            executor.map(download_image, download_tasks)
+            list(tqdm(executor.map(download_image, download_tasks), total=len(download_tasks)))
     except KeyboardInterrupt:
         print("\nInterrupted, shutting down...")
         executor.shutdown(wait=False, cancel_futures=True)
