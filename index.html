@@ -20,7 +20,8 @@
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
 <script>
-    const threshold = 0.20; // model classification threshold
+    const MODEL_DIR = "final_models/EfficientNet_b2/"
+    const threshold = 0.50; // model classification threshold
 
     // Source - https://stackoverflow.com/a/45931408
     // Posted by clabe45, modified by community. See post 'Timeline' for change history
@@ -41,12 +42,12 @@
                     let best_predicted = [];
                     let best_total = 0;
                     for (const input of inputTensors) {
-                        const result = await session.run({ image: input });
-                        const logits = result.logits.data;
+                        const result = await session.run({ input: input });
+                        const logits = result.output.data;
 
                         const scores = Array.from(logits).map((logit, i) => ({
                             type: all_types[i],
-                            score: sigmoid(logit)
+                            score: logit
                         }));
 
                         // sort by score descending
@@ -84,8 +85,8 @@
     let all_types = null;
 
     const init_model = async function () {
-        session = await ort.InferenceSession.create("final_models/EN_b2_creature_classifier.onnx");
-        const response = await fetch("final_models/all_types.json");
+        session = await ort.InferenceSession.create(MODEL_DIR + "model.onnx");
+        const response = await fetch(MODEL_DIR + "classes.json");
         all_types = await response.json();
         console.log("model loaded, types:", all_types.length);
         console.log(all_types);
@@ -151,10 +152,6 @@
         }
 
         return new ort.Tensor('float32', tensor, [1, 3, 224, 224]);
-    }
-
-    const sigmoid = function (x) {
-        return 1 / (1 + Math.exp(-x));
     }
 
 </script>
