@@ -1,5 +1,5 @@
 import requests
-import json
+import ijson
 import argparse
 from pathlib import Path
 import csv
@@ -141,37 +141,33 @@ def get_record_double_faced_token(card):
     return records
 
 
-# TODO: check support for reversible_card in all_cards set
-
-
 # get a record of all cards (pre-histogram filter) that could be in the dataset
 def get_records():
-    with open(f"data/{SET}.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
     records = []
     seen = set()
-    for card in tqdm(data):
-        # get record for individual card
-        if card["layout"] in ("normal", "mutate", "leveler", "meld", "prototype"):
-            record = get_record_normal(card)
-        elif card["layout"] in ("token"):
-            record = get_record_token(card)
-        elif card["layout"] in ("transform", "modal_dfc", "reversible_card"):
-            record = get_record_transform(card)
-        elif card["layout"] in ("adventure", "prepare"):
-            record = get_record_adventure(card)
-        elif card["layout"] in ("double_faced_token"):
-            record = get_record_double_faced_token(card)
-        else:
-            continue
 
-        # append to list of records where applicable
-        for illustration_id, ctype, name, path, uri in record:
-            if illustration_id in seen:
+    with open(f"data/{SET}.json", "rb") as f:
+        for card in ijson.items(f, "item"):
+            # get record for individual card
+            if card["layout"] in ("normal", "mutate", "leveler", "meld", "prototype"):
+                record = get_record_normal(card)
+            elif card["layout"] in ("token"):
+                record = get_record_token(card)
+            elif card["layout"] in ("transform", "modal_dfc", "reversible_card"):
+                record = get_record_transform(card)
+            elif card["layout"] in ("adventure", "prepare"):
+                record = get_record_adventure(card)
+            elif card["layout"] in ("double_faced_token"):
+                record = get_record_double_faced_token(card)
+            else:
                 continue
-            records.append((illustration_id, ctype, name, path, uri))
-            seen.add(illustration_id)
+
+            # append to list of records where applicable
+            for illustration_id, ctype, name, path, uri in record:
+                if illustration_id in seen:
+                    continue
+                records.append((illustration_id, ctype, name, path, uri))
+                seen.add(illustration_id)
     
     return records
         
