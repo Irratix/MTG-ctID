@@ -1,5 +1,3 @@
-- modularize file structure
-- rewrite sampler
 - test semantic soft label smoothing with GloVe word embedding+cosine similarity
 - test loss functions:
     - BCE with soft label smoothing

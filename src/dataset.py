@@ -41,7 +41,7 @@ class CreatureDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         
-        image = Image.open(row["image_path"]).convert("RGB")
+        image = Image.open(row["image_path"].replace("\\", "/")).convert("RGB")
         if self.transform:
             image = self.transform(image)
         
