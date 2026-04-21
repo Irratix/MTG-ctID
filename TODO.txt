@@ -1,6 +1,0 @@
-- test semantic soft label smoothing with GloVe word embedding+cosine similarity
-- test loss functions:
-    - BCE with soft label smoothing
-    - ASL with and without soft label smoothing
-    - if ASL > BCE, test ASL + epsilon * Lovász-Softmax
-- test without validation split on final iteration (if no over-fitting is proven on the setup)

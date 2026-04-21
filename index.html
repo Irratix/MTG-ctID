@@ -20,7 +20,7 @@
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
 <script>
-    const MODEL_DIR = "final_models/EfficientNet_b2_iou_0.240/"
+    const MODEL_DIR = "final_models/EfficientNet_b2_iou_0.251/"
     const threshold = 0.50; // model classification threshold
 
     // Source - https://stackoverflow.com/a/45931408
@@ -60,6 +60,8 @@
                         for (const ctype of scores.slice(0, predicted.length)) {
                             avg += ctype.score;
                         }
+
+                        avg /= predicted.length + 1e-6;
 
                         if (avg >= best_avg) {
                             best_scores = scores;

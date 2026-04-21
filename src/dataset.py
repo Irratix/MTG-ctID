@@ -30,16 +30,11 @@ val_transform = v2.Compose([
 
 # dataset class
 class CreatureDataset(Dataset):
-    def __init__(self, df, all_types, is_training=True, smoothing=None):
+    def __init__(self, df, all_types, is_training=True):
         self.df = df.reset_index(drop=True)
         self.all_types = all_types
         self.type_to_idx = {t: i for i, t in enumerate(all_types)}
         self.transform = train_transform if is_training else val_transform
-        if smoothing is not None:
-            matrix = np.array([smoothing[t] for t in all_types])
-            self.smoothing = torch.tensor(matrix, dtype=torch.float32)
-        else:
-            self.smoothing = None
     
     def __len__(self):
         return len(self.df)
@@ -56,12 +51,6 @@ class CreatureDataset(Dataset):
         for t in types:
             if t in self.all_types:
                 label[self.type_to_idx[t]] = 1.0
-        
-        # apply smoothing if provided
-        if self.smoothing is not None and label.sum() > 0:
-            active = label.bool()
-            soft = self.smoothing[active].max(dim=0).values
-            label = soft
 
         return image, label
 
