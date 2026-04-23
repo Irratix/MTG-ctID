@@ -1,0 +1,45 @@
+* {
+    box-sizing: border-box;
+    border: 1px solid gold;
+}
+
+body {
+    background-color: #28344b;
+    color: #fff;
+    font-family: Beleren;
+}
+
+#img {
+    max-height: 400px;
+    max-width: 100%;
+}
+
+#div {
+    max-width: 1000px;
+    margin: auto;
+    padding: 15px;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* flex-basis: 100%; */
+}
+
+.row {
+    display: flex;
+}
+
+.center {
+    text-align: center;
+}
+
+input[type=file] {
+    max-width: 200px;
+}
+
+@font-face {
+    src: url(fonts/Beleren2016SmallCaps-Bold.ttf);
+    font-family: Beleren;
+}
