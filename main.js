@@ -83,7 +83,7 @@ const get_result = async function (inputs) {
 const draw_result = function (img, ctype, name) {
     const c = document.getElementById("result_canvas");
     const ctx = c.getContext("2d");
-    ctx.drawImage(img, 0, 0, c.width, c.width);
+    ctx.drawImage(img, c.width * 0.1, c.width * 0.1, c.width * 0.8, c.width * 0.8);
     ctx.drawImage(CARD_TEMPLATE, 0, 0, c.width, c.height);
 
     ctx.font = "20px Beleren";
