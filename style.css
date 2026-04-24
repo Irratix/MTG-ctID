@@ -1,12 +1,16 @@
 * {
-    box-sizing: border-box;
-    border: 1px solid gold;
+    /* box-sizing: border-box;
+    border: 1px solid gold; */
 }
 
 body {
     background-color: #28344b;
     color: #fff;
     font-family: Beleren;
+}
+
+h1 {
+    color: rgb(201, 171, 4);
 }
 
 #img {
@@ -20,10 +24,16 @@ body {
     padding: 15px;
 }
 
+.text {
+    font-size: 20px;
+}
+
 .column {
     display: flex;
     flex-direction: column;
     flex: 1;
+    box-sizing: border-box;
+    border: 1px solid gold;
     /* flex-basis: 100%; */
 }
 

@@ -1,6 +1,8 @@
 const MODEL_DIR = "final_models/EfficientNet_b2_iou_0.251/"
 const threshold = 0.50; // model classification threshold
 let FILE = "";
+const CARD_TEMPLATE = new Image();
+CARD_TEMPLATE.src = "card_template.png";
 
 // Source - https://stackoverflow.com/a/45931408
 // Posted by clabe45, modified by community. See post 'Timeline' for change history
@@ -8,59 +10,92 @@ let FILE = "";
 window.addEventListener('load', function () {
     document.querySelector('input[type="file"]').addEventListener('change', function () {
         if (this.files && this.files[0]) {
-            var img = document.getElementById('img');
+            var img = document.createElement(`img`);
             // onload is changed from stackoverflow source to immediately preprocess the image and run the model
             img.onload = async function () {
                 URL.revokeObjectURL(img.src);
 
                 // get 3 crops at extremeties/center and turn into input tensors
-                const inputTensors = get_crops(img).map(crop => preprocessImage(img, crop));
+                const crops = get_crops(img).map(crop => preprocessImage(img, crop));
+                const inputTensors = crops.map(c => {
+                    c.tensor = to_tensor(c.canvas, c.ctx);
+                    return c;
+                });
 
-                // get results for all corps
-                let best_scores = [];
-                let best_predicted = [];
-                let best_avg = 0;
-                for (const input of inputTensors) {
-                    const result = await session.run({ input: input });
-                    const logits = result.output.data;
+                const result = await get_result(inputTensors);
+                const types = result.type.map(t => t.type).join(" ");
+                const filename = document.getElementById("fileinput").value;
+                draw_result(result.img.canvas, types, filename);
 
-                    const scores = Array.from(logits).map((logit, i) => ({
-                        type: all_types[i],
-                        score: logit
-                    }));
-
-                    // sort by score descending
-                    scores.sort((a, b) => b.score - a.score);
-
-                    // predicted types above threshold
-                    const predicted = scores.filter(s => s.score > threshold);
-                    console.log(predicted);
-                    let avg = 0;
-                    for (const ctype of scores.slice(0, predicted.length)) {
-                        avg += ctype.score;
-                    }
-
-                    avg /= predicted.length + 1e-6;
-
-                    if (avg >= best_avg) {
-                        best_scores = scores;
-                        best_predicted = predicted;
-                        best_avg = avg;
-                    }
+                for (const crop of crops) {
+                    crop.canvas.remove();
                 }
-
-                // display results
-                console.log('predicted types:', best_predicted.map(s => `${s.type} (${s.score.toFixed(3)})`));
-                console.log('top 5:', best_scores.slice(0, 5).map(s => `${s.type} (${s.score.toFixed(3)})`));
-
-                document.getElementById("predicted_types").innerHTML = best_predicted.map(s => s.type).join(" ");
-                document.getElementById("top_5_types").innerHTML = best_scores.slice(0, 5).map(s => `<li>${s.type} (${s.score.toFixed(3)})</li>`).join("");
             };
 
             img.src = URL.createObjectURL(this.files[0]); // set src to blob url
         }
     });
 });
+
+const get_result = async function (inputs) {
+    // get results for all crops
+    let best_scores = [];
+    let best_predicted = [];
+    let best_avg = 0;
+    let best_img = inputs[0];
+    for (const image of inputs) {
+        const input = image.tensor;
+        const result = await session.run({ input: input });
+        const logits = result.output.data;
+
+        const scores = Array.from(logits).map((logit, i) => ({
+            type: all_types[i],
+            score: logit
+        }));
+
+        // sort by score descending
+        scores.sort((a, b) => b.score - a.score);
+
+        // predicted types above threshold
+        const predicted = scores.filter(s => s.score > threshold);
+        let avg = 0;
+        for (const ctype of scores.slice(0, predicted.length)) {
+            avg += ctype.score;
+        }
+
+        avg /= predicted.length + 1e-6;
+
+        if (avg >= best_avg) {
+            best_scores = scores;
+            best_predicted = predicted;
+            best_avg = avg;
+            best_img = image;
+        }
+    }
+
+    // display results
+    document.getElementById("predicted_types").innerHTML = "types: " + (best_predicted.map(s => s.type).join(" ") || "None");
+    document.getElementById("top_5_types").innerHTML = best_scores.slice(0, 5).map(s => `<li>${s.type} (${s.score.toFixed(3)})</li>`).join("");
+
+    return { img: best_img, type: best_predicted };
+}
+
+const draw_result = function (img, ctype, name) {
+    const c = document.getElementById("result_canvas");
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0, c.width, c.width);
+    ctx.drawImage(CARD_TEMPLATE, 0, 0, c.width, c.height);
+
+    ctx.font = "20px Beleren";
+    name = name.replace("C:\\fakepath\\", "");
+    name = name.split(".");
+    name.pop();
+    name = name.join(".");
+    ctx.fillText(name, 55, 71);
+
+    const typeline = ctype ? "Creature — " + ctype : "Creature";
+    ctx.fillText(typeline, 55, 437);
+}
 
 let session = null;
 let all_types = null;
@@ -69,9 +104,6 @@ const init_model = async function () {
     session = await ort.InferenceSession.create(MODEL_DIR + "model.onnx");
     const response = await fetch(MODEL_DIR + "classes.json");
     all_types = await response.json();
-    console.log("model loaded, types:", all_types.length);
-    console.log(all_types);
-    console.log(session);
 }
 
 init_model();
@@ -117,6 +149,10 @@ const preprocessImage = function (img, crop_position = "center") {
 
     ctx.drawImage(img, -offsetX, -offsetY, scaledW, scaledH);
 
+    return { canvas, ctx };
+}
+
+const to_tensor = function (c, ctx) {
     const imageData = ctx.getImageData(0, 0, 224, 224);
     const pixels = imageData.data; // RGBA, values 0-255
 
