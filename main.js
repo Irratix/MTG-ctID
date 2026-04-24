@@ -3,6 +3,8 @@ const threshold = 0.50; // model classification threshold
 let FILE = "";
 const CARD_TEMPLATE = new Image();
 CARD_TEMPLATE.src = "card_template.png";
+const SET_LOGO = new Image();
+SET_LOGO.src = "set_logo.png";
 
 // Source - https://stackoverflow.com/a/45931408
 // Posted by clabe45, modified by community. See post 'Timeline' for change history
@@ -30,6 +32,8 @@ window.addEventListener('load', function () {
                 for (const crop of crops) {
                     crop.canvas.remove();
                 }
+
+                img.remove();
             };
 
             img.src = URL.createObjectURL(this.files[0]); // set src to blob url
@@ -83,18 +87,35 @@ const get_result = async function (inputs) {
 const draw_result = function (img, ctype, name) {
     const c = document.getElementById("result_canvas");
     const ctx = c.getContext("2d");
+    
+    // Card template + image
     ctx.drawImage(img, c.width * 0.1, c.width * 0.1, c.width * 0.8, c.width * 0.8);
     ctx.drawImage(CARD_TEMPLATE, 0, 0, c.width, c.height);
 
-    ctx.font = "20px Beleren";
+    // Card name
+    ctx.fillStyle = "black";
+    ctx.font = "24px Beleren";
     name = name.replace("C:\\fakepath\\", "");
     name = name.split(".");
     name.pop();
     name = name.join(".");
     ctx.fillText(name, 55, 71);
 
+    // Card type-line
+    ctx.font = "22px Beleren";
     const typeline = ctype ? "Creature — " + ctype : "Creature";
     ctx.fillText(typeline, 55, 437);
+
+    // set logo
+    ctx.drawImage(SET_LOGO, 440, 411, 35, 35);
+
+    // Footer info
+    ctx.fillStyle = "white";
+    ctx.font = "13px Verdana";
+    ctx.fillText("1/∞ R", 39, 692);
+    ctx.fillText("IRR · EN 🖋️Mysterious Artist", 39, 710);
+    ctx.font = "10px Verdana";
+    ctx.fillText("This makes it look more authentic©", 300, 710);
 }
 
 let session = null;
