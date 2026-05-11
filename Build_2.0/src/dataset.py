@@ -4,6 +4,8 @@ from PIL import Image
 import pandas as pd
 from pathlib import Path
 import torch
+import re
+from tqdm import tqdm
 
 class MTGDataset(Dataset):
     def __init__(self, manifest, vocab):
@@ -21,7 +23,7 @@ class MTGDataset(Dataset):
     
     def compute_labels(self, manifest):
         labels = []
-        for i in range(len(manifest)):
+        for i in tqdm(range(len(manifest))):
             record = manifest.iloc[i]
             labels.append({
                 "creature_types": self.encode_creature_types(record),
@@ -30,9 +32,7 @@ class MTGDataset(Dataset):
                 "keywords": self.encode_keywords(record),
                 "rarity": self.encode_rarity(record),
                 "mana_cost": self.encode_mana_cost(record),
-                "pt": self.encode_pt(record),
-                "creature_type_mask": self.get_creature_type_mask(record),
-                # TODO: determine masks for other classes
+                "pt": self.encode_pt(record)
             })
         return labels
 
@@ -75,15 +75,18 @@ class MTGDataset(Dataset):
             label[self.vocab["rarity"][record["rarity"]]] = 1.0
         return label
     
-    # TODO
     def encode_mana_cost(self, record):
-        ...
+        label = torch.zeros(len(self.vocab["mana_cost"]))
+        if not pd.isna(record["mana_cost"]):
+            for c in re.findall(r'\{([^}]+)\}', record["mana_cost"]):
+                if c in self.vocab["mana_cost"]:
+                    label[self.vocab["mana_cost"][c]] += 1.0
+        return label
     
-    # TODO
     def encode_pt(self, record):
-        ...
-
-    ##### masks #####
-    # TODO
-    def get_creature_type_mask(self, record):
-        ...
+        label = torch.zeros(2)
+        if record["power"].isnumeric():
+            label[0] = float(record["power"])
+        if record["toughness"].isnumeric():
+            label[1] = float(record["toughness"])
+        return label
